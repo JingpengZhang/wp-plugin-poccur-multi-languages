@@ -11,32 +11,21 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-function poccur_ml_load_custom_theme_textdomain()
-{
-    load_theme_textdomain('poccur_ml', plugins_url() . '/languages');
-}
-add_action('after_setup_theme', 'poccur_ml_load_custom_theme_textdomain');
-
+require_once plugin_dir_path(__FILE__) . 'ajax/ajax-switch-lang.php';
 
 /**
- * 添加重写规则，允许 WordPress 将 /en/page-url 和 /zh/page-url 映射到相应的页面内容。
+ * 加载多语言文件
  */
-// function custom_language_rewrite_rules()
-// {
-//     // 首页重写规则
-//     add_rewrite_rule('^(en|zh|ja)?/?$', 'index.php', 'top');
-
-//     // 其他页面重写规则
-//     add_rewrite_rule('^(en|zh|ja)/([^/]+)?', 'index.php?pagename=$matches[2]', 'top');
-// }
-// add_action('init', 'custom_language_rewrite_rules');
+add_action('plugins_loaded', function () {
+    load_plugin_textdomain('poccur-ml', false, dirname(plugin_basename(__FILE__)) . '/languages');
+});
 
 /**
  * 如果 URL 包含语言前缀则不重定向
  */
 function prevent_redirect_on_language_prefixed_urls($redirect_url, $requested_url)
 {
-    if (preg_match('/\/(en_US|zh_CN|ja)\//', $requested_url)) {
+    if (preg_match('/\/(en_US|zh_CN|ja|fr_FR)\//', $requested_url)) {
         return false;
     }
     return $redirect_url;
@@ -46,40 +35,45 @@ add_filter('redirect_canonical', 'prevent_redirect_on_language_prefixed_urls', 1
 /**
  * 如果 url 中包含语言前缀，切换 wordpress 语言
  */
-function load_custom_language()
+function redirect_to_language()
 {
-    // 检查 URL 中的语言前缀
+    // 获取当前请求的 URI
     $uri = trim($_SERVER['REQUEST_URI'], '/');
-    $lang = substr($uri, 0, 2); // 获取 /en 或 /zh 等前缀
-    $supported_languages = ['en_US', 'zh_CN', 'ja']; // 支持的语言列表
 
-    if (in_array($lang, $supported_languages)) {
-        $locale = $lang;
+    // 使用正则表达式匹配 URL 中的语言前缀
+    if (preg_match('/^(en_US|zh_CN|ja|fr_FR)(\/.*)?$/', $uri, $matches)) {
+        // 提取语言前缀
+        $lang = $matches[1];
+
+        // 切换到对应的语言
+        switch_to_locale($lang);
     } else {
-        $locale = 'zh_CN'; // 默认语言
+        // 默认语言设置
+        switch_to_locale('zh_CN'); // 设置默认语言
     }
-
-    switch_to_locale($locale);
-    load_theme_textdomain('zhongming', get_template_directory() . '/languages');
 }
-add_action('template_redirect', 'load_custom_language');
+add_action('template_redirect', 'redirect_to_language');
 
 /**
  * 根据当前语言为超链接添加语言前缀
  */
 function get_translated_link($url)
 {
-    // 解析传入的完整 URL
-    $url_parts = parse_url($url);
+    if (preg_match('/^\/(en_US|zh_CN|ja|fr_FR)(\/.*)?$/', esc_url($_SERVER['REQUEST_URI']), $matches)) {
+        // 解析传入的完整 URL
+        $url_parts = parse_url($url);
 
-    // 分割路径
-    $lang = get_locale(); // 获取当前语言前缀
+        // 分割路径
+        $lang = get_locale(); // 获取当前语言前缀
 
-    // 构建新的 URL
-    $new_url = '/' . $lang . '/' . trim($url_parts['path'], '/');
+        // 构建新的 URL
+        $new_url = '/' . $lang . '/' . trim($url_parts['path'], '/');
 
-    // 返回完整的目标 URL
-    return home_url($new_url);
+        // 返回完整的目标 URL
+        return home_url($new_url);
+    } else {
+        return $url;
+    }
 }
 
 
@@ -150,7 +144,7 @@ function poccur_ml_settings_section_callback()
 function mlu_supported_languages_callback()
 {
     $options = get_option('mlu_supported_languages', []);
-    $languages = ['en_US' => '英语', 'zh_CN' => '简体中文', 'ja' => '日语'];
+    $languages = ['zh_CN' => '简体中文', 'en_US' => '英文',  'ja' => '日文', 'fr_FR' => "法文"];
 
     foreach ($languages as $value => $label) {
         $checked = in_array($value, $options) ? 'checked' : '';
@@ -162,7 +156,7 @@ function mlu_supported_languages_callback()
 function mlu_sanitize_languages($input)
 {
     // 只保留有效的语言选项
-    $valid_languages = ['en_US', 'zh_CN', 'ja'];
+    $valid_languages = ['zh_CN', 'en_US', 'ja', 'fr_FR'];
     return array_intersect($input, $valid_languages);
 }
 
@@ -196,26 +190,37 @@ function mlu_flush_rewrite_rules_on_save($option_name)
 }
 add_action('updated_option', 'mlu_flush_rewrite_rules_on_save');
 
-// 刷新重写规则
-function mlu_flush_rewrite_rules()
-{
-    poccur_ml_add_rewrite_rules(); // 重新注册重写规则
-    flush_rewrite_rules(); // 刷新规则
-}
-register_activation_hook(__FILE__, 'mlu_flush_rewrite_rules');
-// 禁用插件时刷新规则
+// 插件激活时刷新重写规则
+register_activation_hook(
+    __FILE__,
+    function () {
+        poccur_ml_add_rewrite_rules(); // 重新注册重写规则
+        flush_rewrite_rules(); // 刷新规则
+    }
+);
+
+// 插件禁用时清理规则
 register_deactivation_hook(__FILE__, 'flush_rewrite_rules');
 
-
-// 返回用户勾选的可用语言的函数
+/**
+ * 返回用户勾选的可用语言的函数
+ */
 function poccur_ml_get_selected_languages()
 {
     // 获取插件设置中支持的语言
     $available_languages = get_option('mlu_supported_languages', []);
 
-    // 检查是否为空，返回默认值或其他处理
-    if (empty($available_languages)) {
-        return [get_locale()]; // 返回默认语言，例如 'en'
+    // 获取当前语言
+    $current_language = get_locale(); // 获取当前语言，例如 'en_US'
+
+    // 检查当前语言是否在可用语言中
+    if (in_array($current_language, $available_languages)) {
+        // 将当前语言移到数组的开头
+        $available_languages = array_diff($available_languages, [$current_language]); // 移除当前语言
+        array_unshift($available_languages, $current_language); // 添加到数组开头
+    } else {
+        // 如果没有可用语言，返回默认语言
+        return [$current_language];
     }
 
     return $available_languages;
@@ -223,10 +228,10 @@ function poccur_ml_get_selected_languages()
 
 function _poccur_ml_e($text)
 {
-    return _e($text, "poccur_ml");
+    return _e($text, "poccur-ml");
 }
 
 function _poccur_ml__($text)
 {
-    return __($text, "poccur_ml");
+    return __($text, "poccur-ml");
 }
