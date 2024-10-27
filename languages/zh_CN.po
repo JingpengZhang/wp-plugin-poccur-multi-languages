@@ -19,3 +19,6 @@ msgstr "英文"
 
 msgid "ja"
 msgstr "日文"
+
+msgid "fr"
+msgstr "法文"
