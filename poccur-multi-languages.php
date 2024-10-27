@@ -36,7 +36,7 @@ add_action('after_setup_theme', 'poccur_ml_load_custom_theme_textdomain');
  */
 function prevent_redirect_on_language_prefixed_urls($redirect_url, $requested_url)
 {
-    if (preg_match('/\/(en|zh|ja)\//', $requested_url)) {
+    if (preg_match('/\/(en_US|zh_CN|ja)\//', $requested_url)) {
         return false;
     }
     return $redirect_url;
@@ -51,16 +51,12 @@ function load_custom_language()
     // 检查 URL 中的语言前缀
     $uri = trim($_SERVER['REQUEST_URI'], '/');
     $lang = substr($uri, 0, 2); // 获取 /en 或 /zh 等前缀
-    $supported_languages = ['en', 'zh', 'ja']; // 支持的语言列表
+    $supported_languages = ['en_US', 'zh_CN', 'ja']; // 支持的语言列表
 
     if (in_array($lang, $supported_languages)) {
-        if (in_array($lang, ['ja'])) {
-            $locale = $lang;
-        } else {
-            $locale = $lang === 'en' ? 'en_US' : 'zh_CN';
-        }
+        $locale = $lang;
     } else {
-        $locale = 'en_US'; // 默认语言
+        $locale = 'zh_CN'; // 默认语言
     }
 
     switch_to_locale($locale);
@@ -78,12 +74,6 @@ function get_translated_link($url)
 
     // 分割路径
     $lang = get_locale(); // 获取当前语言前缀
-
-    if ($lang == 'en_US') {
-        $lang = 'en';
-    } else if ($lang == 'zh_CN') {
-        $lang = 'zh';
-    }
 
     // 构建新的 URL
     $new_url = '/' . $lang . '/' . trim($url_parts['path'], '/');
@@ -160,7 +150,7 @@ function poccur_ml_settings_section_callback()
 function mlu_supported_languages_callback()
 {
     $options = get_option('mlu_supported_languages', []);
-    $languages = ['en' => '英语', 'zh' => '简体中文', 'ja' => '日语'];
+    $languages = ['en_US' => '英语', 'zh_CN' => '简体中文', 'ja' => '日语'];
 
     foreach ($languages as $value => $label) {
         $checked = in_array($value, $options) ? 'checked' : '';
@@ -172,7 +162,7 @@ function mlu_supported_languages_callback()
 function mlu_sanitize_languages($input)
 {
     // 只保留有效的语言选项
-    $valid_languages = ['en', 'zh', 'ja'];
+    $valid_languages = ['en_US', 'zh_CN', 'ja'];
     return array_intersect($input, $valid_languages);
 }
 
@@ -180,6 +170,9 @@ function mlu_sanitize_languages($input)
 function poccur_ml_add_rewrite_rules()
 {
     $options = get_option('mlu_supported_languages', []);
+    foreach ($options as $opt) {
+        error_log($opt);
+    }
     if (empty($options)) {
         return; // 如果没有选择任何语言，则不添加重写规则
     }
