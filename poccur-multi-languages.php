@@ -13,7 +13,7 @@ if (!defined('ABSPATH')) {
 
 function poccur_ml_load_custom_theme_textdomain()
 {
-    load_theme_textdomain('poccur_ml', get_template_directory() . '/languages');
+    load_theme_textdomain('poccur_ml', plugins_url() . '/languages');
 }
 add_action('after_setup_theme', 'poccur_ml_load_custom_theme_textdomain');
 
